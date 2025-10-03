@@ -16,57 +16,67 @@ interface AgentStatus {
 
 export function AgentAnalysis() {
   const [agents, setAgents] = useState<AgentStatus[]>([]);
+  const [ws, setWs] = useState<WebSocket | null>(null);
 
   useEffect(() => {
-    // Initialize with sample data
+    // Initialize with default data
     setAgents([
       {
         name: "XSS Agent",
-        status: "analyzing",
-        finding: "Scanning for cross-site scripting patterns...",
+        status: "idle",
+        finding: "Waiting for packets...",
         confidence: 0,
         color: "cyan",
         icon: "👤",
       },
       {
         name: "SQL Injection Agent",
-        status: "threat",
-        finding: "Detected SQL injection attempt: ' OR '1'='1",
-        confidence: 91,
+        status: "idle",
+        finding: "Waiting for packets...",
+        confidence: 0,
         color: "purple",
         icon: "🗄️",
       },
       {
         name: "Payload Agent",
-        status: "analyzing",
-        finding: "Deep packet inspection in progress...",
+        status: "idle",
+        finding: "Waiting for packets...",
         confidence: 0,
         color: "orange",
         icon: "📦",
       },
     ]);
     
-    // TODO: Connect to real-time agent status via WebSocket
-    // const ws = new WebSocket('ws://localhost:8000/agents/status');
+    // Connect to WebSocket
+    const websocket = new WebSocket('ws://localhost:8000/ws');
     
-    const interval = setInterval(() => {
-      setAgents(prev => prev.map(agent => {
-        const rand = Math.random();
-        if (agent.status === "analyzing") {
-          if (rand > 0.7) {
-            return { 
-              ...agent, 
-              status: rand > 0.85 ? "threat" : "clear",
-              finding: rand > 0.85 ? "Suspicious pattern detected" : "No threats found",
-              confidence: rand > 0.85 ? Math.floor(Math.random() * 20) + 80 : 0
-            };
-          }
-        }
-        return agent;
-      }));
-    }, 3000);
-
-    return () => clearInterval(interval);
+    websocket.onopen = () => {
+      console.log('Connected to NetSentinel backend');
+      setWs(websocket);
+    };
+    
+    websocket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      
+      if (data.type === 'agent_analysis' || data.type === 'agent_analysis_complete') {
+        setAgents(data.data.agents);
+      }
+    };
+    
+    websocket.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+    
+    websocket.onclose = () => {
+      console.log('WebSocket connection closed');
+      setWs(null);
+    };
+    
+    return () => {
+      if (websocket.readyState === WebSocket.OPEN) {
+        websocket.close();
+      }
+    };
   }, []);
 
   function getStatusColor(status: string) {

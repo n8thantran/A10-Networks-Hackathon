@@ -2,105 +2,55 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useWebSocket } from "@/hooks/use-websocket";
-import { WS_ENDPOINTS } from "@/lib/websocket-config";
+import { useWebSocket } from "@/hooks/useWebSocket";
 import { useEffect, useState } from "react";
 
 interface PacketLog {
   id: string;
   timestamp: string;
-  source: string;
-  destination: string;
+  source_ip: string;
+  dest_ip: string;
   protocol: string;
   size: number;
-  status: "normal" | "suspicious" | "blocked";
+  payload?: string;
+  threat?: boolean;
 }
 
 export function PacketLogs() {
   const [packets, setPackets] = useState<PacketLog[]>([]);
   
-  // WebSocket connection for real-time packet data
-  const { isConnected } = useWebSocket({
-    url: WS_ENDPOINTS.PACKETS,
-    onMessage: (data) => {
-      const newPacket: PacketLog = {
-        id: data.id || Date.now().toString(),
-        timestamp: data.timestamp || new Date().toISOString(),
-        source: data.source,
-        destination: data.destination,
-        protocol: data.protocol,
-        size: data.size,
-        status: data.status || "normal",
-      };
-      setPackets(prev => [newPacket, ...prev].slice(0, 50)); // Keep last 50 packets
-    },
-    onError: (error) => console.error('Packet WebSocket error:', error),
-  });
-
+  // Get WebSocket from context
+  const { isConnected, lastMessage } = useWebSocket();
+  
+  // Process incoming WebSocket messages
   useEffect(() => {
-    // Initialize with sample data
-    const now = new Date().toISOString();
-    setPackets([
-      {
-        id: "1",
-        timestamp: now,
-        source: "192.168.1.100",
-        destination: "10.0.0.5",
-        protocol: "TCP",
-        size: 1024,
-        status: "normal",
-      },
-      {
-        id: "2",
-        timestamp: now,
-        source: "45.33.32.156",
-        destination: "10.0.0.5",
-        protocol: "UDP",
-        size: 512,
-        status: "suspicious",
-      },
-      {
-        id: "3",
-        timestamp: now,
-        source: "192.168.1.105",
-        destination: "10.0.0.5",
-        protocol: "HTTP",
-        size: 2048,
-        status: "normal",
-      },
-    ]);
-
-    // TODO: Connect to WebSocket API for real-time packet logs
-    // const ws = new WebSocket('ws://localhost:8000/packets');
-    
-    const interval = setInterval(() => {
-      const newPacket: PacketLog = {
-        id: Date.now().toString(),
-        timestamp: new Date().toISOString(),
-        source: `${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`,
-        destination: "10.0.0.5",
-        protocol: ["TCP", "UDP", "HTTP", "DNS", "HTTPS"][Math.floor(Math.random() * 5)],
-        size: Math.floor(Math.random() * 4096),
-        status: Math.random() > 0.8 ? "suspicious" : "normal",
-      };
-      
-      setPackets(prev => [newPacket, ...prev].slice(0, 50));
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  function getStatusColor(status: string) {
-    switch (status) {
-      case "normal":
-        return "text-emerald-400";
-      case "suspicious":
-        return "text-yellow-400";
-      case "blocked":
-        return "text-red-400";
-      default:
-        return "text-slate-400";
+    if (lastMessage) {
+      if ((lastMessage.type === 'packet' || lastMessage.type === 'threat') && lastMessage.data) {
+        const packetData = lastMessage.data;
+        const newPacket: PacketLog = {
+          id: String(packetData.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`),
+          timestamp: packetData.timestamp || new Date().toISOString(),
+          source_ip: packetData.source || packetData.source_ip || '0.0.0.0',
+          dest_ip: packetData.destination || packetData.dest_ip || '0.0.0.0',
+          protocol: packetData.protocol || 'TCP',
+          size: packetData.size || 0,
+          payload: packetData.payload,
+          threat: packetData.threat_level > 5 || packetData.status === 'malicious',
+        };
+        setPackets(prev => [newPacket, ...prev].slice(0, 50)); // Keep last 50 packets
+      }
     }
+  }, [lastMessage]);
+
+  function getThreatBadge(threat?: boolean) {
+    if (threat) {
+      return (
+        <Badge variant="destructive" className="text-xs">
+          Threat
+        </Badge>
+      );
+    }
+    return null;
   }
 
   return (
@@ -137,11 +87,11 @@ export function PacketLogs() {
                 <div className="flex-1 grid grid-cols-4 gap-4 text-sm">
                   <div>
                     <span className="text-slate-400">Source:</span>{" "}
-                    <span className="text-white font-mono">{packet.source}</span>
+                    <span className="text-white font-mono">{packet.source_ip}</span>
                   </div>
                   <div>
                     <span className="text-slate-400">Dest:</span>{" "}
-                    <span className="text-white font-mono">{packet.destination}</span>
+                    <span className="text-white font-mono">{packet.dest_ip}</span>
                   </div>
                   <div>
                     <span className="text-slate-400">Protocol:</span>{" "}
@@ -152,9 +102,7 @@ export function PacketLogs() {
                     <span className="text-white">{packet.size}B</span>
                   </div>
                 </div>
-                <Badge variant={packet.status === "normal" ? "outline" : "destructive"} className={getStatusColor(packet.status)}>
-                  {packet.status}
-                </Badge>
+                {getThreatBadge(packet.threat)}
               </div>
               <div className="text-xs text-slate-500 mt-1">
                 {new Date(packet.timestamp).toLocaleTimeString()}

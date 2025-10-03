@@ -3,8 +3,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useWebSocket } from "@/hooks/use-websocket";
-import { WS_ENDPOINTS } from "@/lib/websocket-config";
+import { useWebSocket } from "@/hooks/useWebSocket";
 import { useEffect, useState } from "react";
 
 interface ThreatAlert {
@@ -13,62 +12,41 @@ interface ThreatAlert {
   severity: "low" | "medium" | "high" | "critical";
   description: string;
   timestamp: string;
-  source: string;
+  source_ip: string;
+  confidence: number;
+  remediation: string;
 }
 
 export function ThreatAlerts() {
   const [alerts, setAlerts] = useState<ThreatAlert[]>([]);
   
-  // WebSocket connection for real-time threat alerts
-  const { isConnected } = useWebSocket({
-    url: WS_ENDPOINTS.THREATS,
-    onMessage: (data) => {
+  // Get WebSocket from context
+  const { isConnected, lastMessage } = useWebSocket();
+  
+  // Process incoming WebSocket messages
+  useEffect(() => {
+    if (lastMessage && lastMessage.type === 'threat' && lastMessage.data) {
+      const alertData = lastMessage.data;
+      
+      // Determine severity based on threat level
+      let severity: "low" | "medium" | "high" | "critical" = "low";
+      if (alertData.threat_level >= 8) severity = "critical";
+      else if (alertData.threat_level >= 6) severity = "high";
+      else if (alertData.threat_level >= 4) severity = "medium";
+      
       const newAlert: ThreatAlert = {
-        id: data.id || Date.now().toString(),
-        type: data.type,
-        severity: data.severity,
-        description: data.description,
-        timestamp: data.timestamp || new Date().toISOString(),
-        source: data.source,
+        id: String(alertData.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`),
+        type: alertData.attack_type || alertData.type || 'Unknown',
+        severity: severity,
+        description: `${alertData.attack_type || 'Threat'} detected from ${alertData.source}`,
+        timestamp: alertData.timestamp || new Date().toISOString(),
+        source_ip: alertData.source || alertData.source_ip || '0.0.0.0',
+        confidence: alertData.confidence || (alertData.threat_level / 10) || 0.85,
+        remediation: `Block source IP ${alertData.source} and investigate traffic patterns`,
       };
       setAlerts(prev => [newAlert, ...prev].slice(0, 20)); // Keep last 20 alerts
-    },
-    onError: (error) => console.error('Threat WebSocket error:', error),
-  });
-
-  useEffect(() => {
-    // Initialize with sample data
-    const now = new Date().toISOString();
-    setAlerts([
-      {
-        id: "1",
-        type: "Port Scan",
-        severity: "medium",
-        description: "Multiple port scan attempts detected from external IP",
-        timestamp: now,
-        source: "45.33.32.156",
-      },
-      {
-        id: "2",
-        type: "DDoS Attack",
-        severity: "critical",
-        description: "High volume SYN flood detected - 50k requests/sec",
-        timestamp: now,
-        source: "Multiple IPs",
-      },
-      {
-        id: "3",
-        type: "SQL Injection",
-        severity: "high",
-        description: "SQL injection attempt blocked in login form",
-        timestamp: now,
-        source: "203.0.113.45",
-      },
-    ]);
-    
-    // TODO: Connect to API for real threat alerts
-    // const eventSource = new EventSource('/api/threats/stream');
-  }, []);
+    }
+  }, [lastMessage]);
 
   function getSeverityColor(severity: string) {
     switch (severity) {
@@ -130,9 +108,15 @@ export function ThreatAlerts() {
                     </div>
                     <p className="text-sm text-slate-300 mb-2">{alert.description}</p>
                     <div className="flex items-center gap-4 text-xs text-slate-400">
-                      <span>Source: {alert.source}</span>
+                      <span>Source: {alert.source_ip}</span>
+                      <span>Confidence: {alert.confidence?.toFixed(0)}%</span>
                       <span>{new Date(alert.timestamp).toLocaleTimeString()}</span>
                     </div>
+                    {alert.remediation && (
+                      <div className="text-xs text-cyan-400 border-t border-slate-700 pt-2 mt-2">
+                        <strong>Action:</strong> {alert.remediation}
+                      </div>
+                    )}
                   </div>
                   <Button variant="ghost" size="sm">
                     Investigate

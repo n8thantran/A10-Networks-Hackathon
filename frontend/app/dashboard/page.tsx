@@ -3,6 +3,7 @@
 import { ActiveConnections } from "@/components/dashboard/active-connections";
 import { AgentAnalysis } from "@/components/dashboard/agent-analysis";
 import { AIInsights } from "@/components/dashboard/ai-insights";
+import { AttackSimulator } from "@/components/dashboard/attack-simulator";
 import { NetworkStats } from "@/components/dashboard/network-stats";
 import { PacketLogs } from "@/components/dashboard/packet-logs";
 import { SemanticSearch } from "@/components/dashboard/semantic-search";
@@ -12,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { WebSocketProvider } from "@/hooks/useWebSocket";
 
 export default function Dashboard() {
   const [uptime, setUptime] = useState<string>("0h 0m");
@@ -39,7 +41,8 @@ export default function Dashboard() {
   }, [startTime]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+    <WebSocketProvider>
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
       {/* Header */}
       <header className="border-b border-slate-800/50 backdrop-blur-sm bg-slate-950/50 sticky top-0 z-50">
         <div className="max-w-[1800px] mx-auto px-6 py-4">
@@ -98,12 +101,17 @@ export default function Dashboard() {
 
         {/* Dashboard Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-          {/* Row 1 - Semantic Search (Full Width) */}
+          {/* Row 1 - Attack Simulator (Full Width) */}
+          <div className="xl:col-span-3">
+            <AttackSimulator />
+          </div>
+
+          {/* Row 2 - Semantic Search (Full Width) */}
           <div className="xl:col-span-3">
             <SemanticSearch />
           </div>
 
-          {/* Row 2 - Agent Analysis (Full Width) */}
+          {/* Row 3 - Agent Analysis (Full Width) */}
           <div className="xl:col-span-3">
             <AgentAnalysis />
           </div>
@@ -134,6 +142,7 @@ export default function Dashboard() {
         </div>
       </main>
     </div>
+    </WebSocketProvider>
   );
 }
 

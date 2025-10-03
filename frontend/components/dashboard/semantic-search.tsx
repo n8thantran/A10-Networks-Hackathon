@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface SearchResult {
   id: string;
@@ -20,37 +20,42 @@ export function SemanticSearch() {
   const [query, setQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [ws, setWs] = useState<WebSocket | null>(null);
+
+  useEffect(() => {
+    // Connect to WebSocket
+    const websocket = new WebSocket('ws://localhost:8000/ws');
+    
+    websocket.onopen = () => {
+      setWs(websocket);
+    };
+    
+    websocket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      
+      if (data.type === 'search_results') {
+        setResults(data.data);
+        setIsSearching(false);
+      }
+    };
+    
+    return () => {
+      if (websocket.readyState === WebSocket.OPEN) {
+        websocket.close();
+      }
+    };
+  }, []);
 
   function handleSearch() {
-    if (!query.trim()) return;
+    if (!query.trim() || !ws) return;
     
     setIsSearching(true);
     
-    // TODO: Connect to RAG API with ChromaDB
-    // fetch('/api/search/semantic', { method: 'POST', body: JSON.stringify({ query }) })
-    
-    // Mock results
-    setTimeout(() => {
-      setResults([
-        {
-          id: "1",
-          timestamp: new Date().toISOString(),
-          source: "45.33.32.156",
-          destination: "10.0.0.5",
-          threat: "SQL Injection attempt detected in login form payload",
-          relevance: 0.94,
-        },
-        {
-          id: "2",
-          timestamp: new Date(Date.now() - 3600000).toISOString(),
-          source: "203.0.113.45",
-          destination: "10.0.0.5",
-          threat: "Similar SQL injection pattern from related subnet",
-          relevance: 0.87,
-        },
-      ]);
-      setIsSearching(false);
-    }, 1000);
+    // Send search query via WebSocket
+    ws.send(JSON.stringify({
+      type: 'search',
+      query: query
+    }));
   }
 
   return (
