@@ -2,6 +2,8 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useWebSocket } from "@/hooks/use-websocket";
+import { WS_ENDPOINTS } from "@/lib/websocket-config";
 import { useEffect, useState } from "react";
 
 interface PacketLog {
@@ -16,6 +18,24 @@ interface PacketLog {
 
 export function PacketLogs() {
   const [packets, setPackets] = useState<PacketLog[]>([]);
+  
+  // WebSocket connection for real-time packet data
+  const { isConnected } = useWebSocket({
+    url: WS_ENDPOINTS.PACKETS,
+    onMessage: (data) => {
+      const newPacket: PacketLog = {
+        id: data.id || Date.now().toString(),
+        timestamp: data.timestamp || new Date().toISOString(),
+        source: data.source,
+        destination: data.destination,
+        protocol: data.protocol,
+        size: data.size,
+        status: data.status || "normal",
+      };
+      setPackets(prev => [newPacket, ...prev].slice(0, 50)); // Keep last 50 packets
+    },
+    onError: (error) => console.error('Packet WebSocket error:', error),
+  });
 
   useEffect(() => {
     // Initialize with sample data
@@ -88,12 +108,20 @@ export function PacketLogs() {
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle>Packet Logs</CardTitle>
-          <Badge variant="outline" className="border-emerald-500/20 text-emerald-400">
+          <Badge 
+            variant="outline" 
+            className={isConnected 
+              ? "border-emerald-500/20 text-emerald-400" 
+              : "border-red-500/20 text-red-400"
+            }
+          >
             <span className="relative flex h-2 w-2 mr-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              {isConnected && (
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              )}
+              <span className={`relative inline-flex rounded-full h-2 w-2 ${isConnected ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
             </span>
-            Live
+            {isConnected ? 'Live' : 'Disconnected'}
           </Badge>
         </div>
       </CardHeader>

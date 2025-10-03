@@ -3,6 +3,8 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useWebSocket } from "@/hooks/use-websocket";
+import { WS_ENDPOINTS } from "@/lib/websocket-config";
 import { useEffect, useState } from "react";
 
 interface ThreatAlert {
@@ -16,6 +18,23 @@ interface ThreatAlert {
 
 export function ThreatAlerts() {
   const [alerts, setAlerts] = useState<ThreatAlert[]>([]);
+  
+  // WebSocket connection for real-time threat alerts
+  const { isConnected } = useWebSocket({
+    url: WS_ENDPOINTS.THREATS,
+    onMessage: (data) => {
+      const newAlert: ThreatAlert = {
+        id: data.id || Date.now().toString(),
+        type: data.type,
+        severity: data.severity,
+        description: data.description,
+        timestamp: data.timestamp || new Date().toISOString(),
+        source: data.source,
+      };
+      setAlerts(prev => [newAlert, ...prev].slice(0, 20)); // Keep last 20 alerts
+    },
+    onError: (error) => console.error('Threat WebSocket error:', error),
+  });
 
   useEffect(() => {
     // Initialize with sample data

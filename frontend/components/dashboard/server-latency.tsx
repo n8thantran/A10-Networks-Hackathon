@@ -2,6 +2,8 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useWebSocket } from "@/hooks/use-websocket";
+import { WS_ENDPOINTS } from "@/lib/websocket-config";
 import { useEffect, useState } from "react";
 
 interface DataPoint {
@@ -13,6 +15,21 @@ export function ServerLatency() {
   const [latency, setLatency] = useState<number>(45);
   const [history, setHistory] = useState<DataPoint[]>([]);
   const [mounted, setMounted] = useState(false);
+  
+  // WebSocket connection for real-time latency metrics
+  const { isConnected } = useWebSocket({
+    url: WS_ENDPOINTS.METRICS,
+    onMessage: (data) => {
+      if (data.latency !== undefined) {
+        setLatency(data.latency);
+        setHistory(prev => [...prev, { 
+          timestamp: Date.now(), 
+          value: data.latency 
+        }].slice(-30)); // Keep last 30 data points
+      }
+    },
+    onError: (error) => console.error('Metrics WebSocket error:', error),
+  });
 
   useEffect(() => {
     // Initialize history on client side only to avoid hydration mismatch
